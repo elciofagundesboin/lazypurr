@@ -19,7 +19,7 @@
             position: absolute;
             top: 20px;
             right: 20px;
-            z-index: 100; /* Garante que fique acima do canvas 3D */
+            z-index: 100;
             cursor: pointer;
             background: rgba(0, 0, 0, 0.5); /* Fundo semi-transparente */
             border: 1px solid rgba(255, 255, 255, 0.2);
@@ -84,13 +84,13 @@
         controls.dampingFactor = 0.05;
         controls.zoomSpeed = 0.5;
         controls.target.set(0, 2, 0); 
-        //controls.maxPolarAngle = Math.PI / 2; // Impede que a câmera vá para baixo do chão
+        controls.maxPolarAngle = Math.PI / 2; // Impede que a câmera vá para baixo do chão
         controls.minDistance = 5;
         controls.maxDistance = 30;
         controls.enablePan = true; // Ativa o "arrastar" lateral
 
         // --- 3. ILUMINAÇÃO GERAL ---
-        // Luz Ambiente (fraca, azulada para simular noite)
+        // Luz Ambiente (fraca)
         const ambientLight = new THREE.AmbientLight(0xBDD6FF, 0.6); 
         scene.add(ambientLight);
 
@@ -102,10 +102,9 @@
             light.castShadow = true;
             light.shadow.bias = -0.001; // Reduz artefatos de sombra
             
-            // Adiciona um helper (pequena esfera de arame) para você ver onde a luz está
+            // Adiciona um helper (pequena esfera de arame) para ver onde a luz está
             const helper = new THREE.PointLightHelper(light, 0.3);
-            //scene.add(helper); // REMOVER DEPOIS DE POSICIONAR
-
+            //scene.add(helper);
             scene.add(light);
             return light;
         }
@@ -116,7 +115,7 @@
         // LUZ 2: Luminária da Mesa
         const deskLight = createPointLight(0xffb300, 0.2, -0.8, 1.96, -2.15, 'mesa');
 
-        // LUZ 3: Luminária da Mesa
+        // LUZ 3: Luz auxiliar frontal
         //const frontLight = createPointLight(0xffffff, 10, 5, 2, 5, 'front');
 
         // --- 4. PÓS-PROCESSAMENTO (BLOOM / GLOW) ---
@@ -243,11 +242,10 @@
             sound.setBuffer(buffer);
             sound.setLoop(true); // Loop infinito
             sound.setVolume(0.5); // 50% do volume
-            // Nota: Não chamamos sound.play() aqui direto para evitar erro de bloqueio do navegador
         });
 
         // 4. Lógica de "Autoplay" na primeira interação
-        // O navegador só libera o áudio após um clique. Vamos usar um evento "one-time"
+        // O navegador só libera o áudio após um clique. Para corrigir rpecisa usar um evento "one-time"
         function startAudioOnInteraction() {
             // Tenta tocar se o som estiver carregado e não estiver tocando
             if (sound.buffer && !sound.isPlaying) {
@@ -276,7 +274,7 @@
 
             if (isMuted) {
                 // DESMUTAR
-                sound.play(); // Ou sound.setVolume(0.5) se preferir não pausar
+                sound.play();
                 muteIcon.classList.remove('fa-volume-xmark');
                 muteIcon.classList.add('fa-volume-high');
                 isMuted = false;
@@ -292,17 +290,41 @@
             }
         });
 
-        animate();
-
-        // Ajuste de janela
-        window.addEventListener('resize', onWindowResize, false);
+        // --- FUNÇÃO DE REDIMENSIONAMENTO INTELIGENTE ---
         function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
+            const aspect = window.innerWidth / window.innerHeight;
+            
+            camera.aspect = aspect;
             camera.updateProjectionMatrix();
+
             renderer.setSize(window.innerWidth, window.innerHeight);
             composer.setSize(window.innerWidth, window.innerHeight);
-            composer.setPixelRatio(window.devicePixelRatio); // Garante que continue nítido ao redimensionar
+            composer.setPixelRatio(window.devicePixelRatio);
+
+            // Se a proporção for menor que 1 (Retrato/Vertical), ajustamos o zoom.
+            // A lógica é: zoom = aspect. Isso mantém a largura visível constante.
+            if (aspect < 1) { // Vertical
+                camera.zoom = aspect / 0.95; 
+            } else {
+                camera.zoom = 1; // No PC (Paisagem), zoom normal
+            }
+            
+            camera.updateProjectionMatrix(); // Aplica a mudança de zoom
+
+            // Atualiza a espessura das linhas (se estiver usando)
+            scene.traverse((object) => {
+                if (object.isLineSegments2) {
+                    object.material.resolution.set(window.innerWidth, window.innerHeight);
+                }
+            });
         }
+
+        // Adiciona o ouvinte de evento
+        window.addEventListener('resize', onWindowResize, false);
+        
+        onWindowResize();
+
+        animate();
     </script>
 </body>
 </html>
